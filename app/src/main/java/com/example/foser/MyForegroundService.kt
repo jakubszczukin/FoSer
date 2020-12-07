@@ -1,13 +1,15 @@
 package com.example.foser
 
 import android.app.*
+import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
-import android.widget.Toast
 import androidx.annotation.Nullable
 import androidx.annotation.RequiresApi
+import java.util.*
 
 
 class MyForegroundService : Service() {
@@ -27,26 +29,64 @@ class MyForegroundService : Service() {
     private var show_time: Boolean? = null
     private  var do_work:kotlin.Boolean? = null
     private  var double_speed:kotlin.Boolean? = null
+    private val period: Long = 2000 //2s
+
+    //4.
+    private var ctx: Context? = null
+    private var notificationIntent: Intent? = null
+    private var pendingIntent: PendingIntent? = null
+
+    //5.
+    private var counter = 0
+    private var timer: Timer? = null
+    private var timerTask: TimerTask? = null
+    val handler: Handler = Handler()
+    val runnable = Runnable { }
 
     override fun onCreate() {
         super.onCreate()
+
+        ctx = this
+        notificationIntent = Intent(ctx, MainActivity::class.java)
+        pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
+
+        counter = 0
+
+        timer = Timer()
+
+        timerTask = object : TimerTask() {
+            override fun run() {
+                counter++;
+                handler.post(runnable);
+            }
+        }
+    }
+
+    fun run() {
+        val notification: Notification = Notification.Builder(ctx, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_my_icon)
+                .setContentTitle(getString(R.string.ser_title))
+                .setShowWhen(show_time!!)
+                .setContentText("$message $counter")
+                .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.circle))
+                .setContentIntent(pendingIntent)
+                .build()
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(1, notification)
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(runnable)
+        timer!!.cancel()
+        timer!!.purge()
+        timer = null
         super.onDestroy()
     }
 
     private fun doWork() {
-        try {
-            Thread.sleep(5000)
-        } catch (e: Exception) {
-            //
+        if (do_work!!) {
+            timer!!.schedule(timerTask, 0L, if (double_speed!!) period / 2L else period)
         }
-        val info = """Start working...
-            show_time=${show_time.toString()}
-             do_work=${do_work.toString()}
-            double_speed=${double_speed.toString()}"""
-        Toast.makeText(this, info, Toast.LENGTH_LONG).show()
     }
 
     @Nullable
@@ -62,8 +102,6 @@ class MyForegroundService : Service() {
         do_work = intent.getBooleanExtra(WORK, false)
         double_speed = intent.getBooleanExtra(WORK_DOUBLE, false)
         createNotificationChannel()
-        val notificationIntent = Intent(this, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 0)
         val notification: Notification = Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(com.example.foser.R.drawable.ic_my_icon)
                 .setContentTitle(getString(com.example.foser.R.string.ser_title))
